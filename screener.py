@@ -4,9 +4,11 @@ import yfinance as yf
 import requests
 import io
 import json
+import sys
+import os
 from datetime import datetime
 
-# 주요 러셀 1000 종목 한글 기업명 대폭 보강 매핑
+# 주요 러셀 1000 종목 한글 기업명 매핑
 KOR_NAMES = {
     "AAPL": "애플", "MSFT": "마이크로소프트", "NVDA": "엔비디아", "GOOGL": "알파벳 A", "GOOG": "알파벳 C",
     "AMZN": "아마존", "META": "메타", "BRK-B": "버크셔 해서웨이", "LLY": "일라이 릴리", "AVGO": "브로드컴",
@@ -53,8 +55,8 @@ def get_russell1000_tickers():
                     ticker_dict[t] = KOR_NAMES.get(t, eng_name)
                 if len(ticker_dict) > 500:
                     return list(ticker_dict.keys()), ticker_dict
-    except Exception as e:
-        print(f"IWB CSV 로드 참고: {e}")
+    except Exception:
+        pass
 
     # 2순위: Wikipedia 백업
     urls = [
@@ -113,13 +115,28 @@ def run_screener():
         print(f"2. 데이터 분석 중... ({i+1} ~ {min(i+batch_size, total_count)} / {total_count})")
         
         try:
+            # yfinance 내부 표준 출력/에러(상폐 경고 등) 일시 차단
+            old_stdout = sys.stdout
+            old_stderr = sys.stderr
+            sys.stdout = open(os.devnull, 'w')
+            sys.stderr = open(os.devnull, 'w')
+            
             data = yf.download(batch, period="2y", group_by="ticker", threads=True, progress=False)
+            
+            sys.stdout.close()
+            sys.stderr.close()
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
         except Exception:
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
             continue
             
         for ticker in batch:
             try:
                 df = data[ticker] if len(batch) > 1 else data
+                if df is None or df.empty:
+                    continue
                 df = df.dropna(subset=['Close'])
                 if len(df) < 200:
                     continue
