@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-08 22:39",
+  "updated_at": "2026-11-08 22:43",
   "universe": "Russell 1000",
   "total_analyzed": 1155,
   "sma20_near": [
@@ -1445,7 +1445,7 @@
     },
     {
       "ticker": "AXP",
-      "name": "American Express",
+      "name": "아메리칸 익스프레스",
       "price": 320.99,
       "sma20": 318.66,
       "diff_sma20": 0.73,
@@ -1655,7 +1655,7 @@
     },
     {
       "ticker": "PLD",
-      "name": "Prologis",
+      "name": "프로롤지스",
       "price": 126.96,
       "sma20": 128.05,
       "diff_sma20": -0.85,
@@ -2720,7 +2720,7 @@
     },
     {
       "ticker": "BKNG",
-      "name": "Booking Holdings",
+      "name": "부킹 홀딩스",
       "price": 160.67,
       "sma20": 158.36,
       "diff_sma20": 1.46,
@@ -3937,7 +3937,7 @@
     },
     {
       "ticker": "LMT",
-      "name": "Lockheed Martin",
+      "name": "록히드 마틴",
       "price": 567.08,
       "sma20": 582.72,
       "diff_sma20": -2.68,
@@ -4162,7 +4162,7 @@
     },
     {
       "ticker": "AXP",
-      "name": "American Express",
+      "name": "아메리칸 익스프레스",
       "price": 320.99,
       "sma20": 318.66,
       "diff_sma20": 0.73,

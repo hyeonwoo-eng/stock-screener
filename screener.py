@@ -6,7 +6,7 @@ import io
 import json
 from datetime import datetime
 
-# 주요 종목 한글 기업명 매핑
+# 주요 러셀 1000 종목 한글 기업명 대폭 보강 매핑
 KOR_NAMES = {
     "AAPL": "애플", "MSFT": "마이크로소프트", "NVDA": "엔비디아", "GOOGL": "알파벳 A", "GOOG": "알파벳 C",
     "AMZN": "아마존", "META": "메타", "BRK-B": "버크셔 해서웨이", "LLY": "일라이 릴리", "AVGO": "브로드컴",
@@ -21,15 +21,16 @@ KOR_NAMES = {
     "SNOW": "스노우플레이크", "COIN": "코인베이스", "ARM": "ARM 홀딩스", "SMCI": "슈퍼마이크로컴퓨터",
     "MSTR": "마이크로스트래티지", "IONQ": "아이온큐", "RIVN": "리비안", "LCID": "루시드", "SOFI": "소파이",
     "U": "유니티", "RBLX": "로블록스", "HOOD": "로빈후드", "CPNG": "쿠팡", "DPZ": "도미노피자",
-    "A": "애질런트 테크놀로지스", "SCHW": "찰스 슈왑", "APD": "에어프로덕츠", "CDW": "CDW 코퍼레이션", "LDOS": "라이도스 홀딩스"
+    "A": "애질런트 테크놀로지스", "SCHW": "찰스 슈왑", "APD": "에어프로덕츠", "CDW": "CDW 코퍼레이션", "LDOS": "라이도스 홀딩스",
+    "AMAT": "어플라이드 머티어리얼즈", "INTU": "인투이트", "ISRG": "인튜이티브 서지컬", "BKNG": "부킹 홀딩스",
+    "GEHC": "GE헬스케어", "LMT": "록히드 마틴", "ETN": "이턴", "PLD": "프로롤지스", "AXP": "아메리칸 익스프레스"
 }
 
 def get_russell1000_tickers():
-    """iShares Russell 1000 ETF (IWB) 공식 데이터 또는 Wikipedia에서 종목 리스트를 가져옵니다."""
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     ticker_dict = {}
 
-    # 1순위: iShares Russell 1000 ETF (IWB) 공식 보유종목 CSV 직접 다운로드
+    # 1순위: iShares Russell 1000 ETF (IWB) 공식 보유종목 CSV
     try:
         iwb_url = "https://www.ishares.com/us/products/239707/ishares-russell-1000-etf/1467271812596.ajax?fileType=csv&fileName=IWB_holdings&dataType=fund"
         res = requests.get(iwb_url, headers=headers, timeout=15)
@@ -55,7 +56,7 @@ def get_russell1000_tickers():
     except Exception as e:
         print(f"IWB CSV 로드 참고: {e}")
 
-    # 2순위 (백업): 위키피디아 페이지(Russell 1000 또는 S&P 500 + S&P 400 대·중형주) 파싱
+    # 2순위: Wikipedia 백업
     urls = [
         "https://en.wikipedia.org/wiki/Russell_1000_Index",
         "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies",
@@ -89,7 +90,6 @@ def get_russell1000_tickers():
     return list(ticker_dict.keys()), ticker_dict
 
 def calculate_rsi(series, period=14):
-    """14일 RSI 지표를 계산합니다."""
     delta = series.diff()
     gain = delta.where(delta > 0, 0.0)
     loss = -delta.where(delta < 0, 0.0)
@@ -107,16 +107,14 @@ def run_screener():
     results_sma20 = []
     results_sma200 = []
     
-    # 1,000개 종목 고속 처리를 위해 100개씩 배치 다운로드
     batch_size = 100
     for i in range(0, total_count, batch_size):
         batch = tickers[i:i+batch_size]
-        print(f"2. 데이터 다운로드 및 분석 중... ({i+1} ~ {min(i+batch_size, total_count)} / {total_count})")
+        print(f"2. 데이터 분석 중... ({i+1} ~ {min(i+batch_size, total_count)} / {total_count})")
         
         try:
             data = yf.download(batch, period="2y", group_by="ticker", threads=True, progress=False)
-        except Exception as e:
-            print(f"배치 다운로드 오류: {e}")
+        except Exception:
             continue
             
         for ticker in batch:
