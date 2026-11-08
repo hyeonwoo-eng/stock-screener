@@ -5,6 +5,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import os
+from screener import run_screener
 
 st.set_page_config(
     page_title="US Equity Technical Screener Pro",
@@ -61,12 +62,10 @@ def fetch_chart_data(ticker, timeframe):
         
     df = df.dropna(subset=['Close'])
     
-    # 전체 데이터로 이동평균선 먼저 계산 (앞부분 끊김 현상 해결)
     df['SMA20'] = df['Close'].rolling(20).mean()
     df['SMA200'] = df['Close'].rolling(200).mean()
     df['Vol_MA20'] = df['Volume'].rolling(20).mean()
     
-    # 화면에 보여줄 최근 캔들 개수로 슬라이싱
     if timeframe == "일봉":
         df = df.iloc[-150:]
     elif timeframe == "주봉":
@@ -76,27 +75,37 @@ def fetch_chart_data(ticker, timeframe):
         
     return df
 
-data = load_screened_data()
-
-# 상단 타이틀 영역
+# 상단 타이틀 및 데이터 갱신 버튼 영역
 col_title, col_btn = st.columns([4, 1])
 with col_title:
     st.markdown("### US Equity Technical Screener Pro")
     st.caption("Russell 1000 이동평균선(±2.0%) 지지·저항 및 거래량·RSI 입체 분석 터미널")
+with col_btn:
+    st.write("")
+    if st.button("🔄 데이터 업데이트", use_container_width=True):
+        with st.spinner("Russell 1000 전체 종목 데이터를 수집 및 분석 중입니다... (약 1~2분 소요)"):
+            run_screener()
+            st.cache_data.clear()
+        st.rerun()
+
+data = load_screened_data()
 
 if data is None:
-    st.warning("`screened_stocks.json` 파일을 찾을 수 없습니다. 먼저 `python screener.py`를 실행해 데이터를 생성해 주세요.")
+    st.warning("데이터 파일이 없습니다. 우측 상단의 '🔄 데이터 업데이트' 버튼을 눌러주세요.")
     st.stop()
 
-sma20_list = data.get("sma20_near", [])
-sma200_list = data.get("sma200_near", [])
+# 이전 버전 및 신규 버전 JSON 키 모두 호환되도록 처리
+sma20_list = data.get("sma20_near", data.get("sma20_stocks", data.get("sma20", [])))
+sma200_list = data.get("sma200_near", data.get("sma200_stocks", data.get("sma200", [])))
+total_cnt = data.get("total_analyzed", data.get("total_count", data.get("analyzed_count", 0)))
+
 sma20_oversold = sum(1 for x in sma20_list if x.get("rsi", 50) <= 30)
 sma200_oversold = sum(1 for x in sma200_list if x.get("rsi", 50) <= 30)
 
 # 상단 요약 지표 카드 4개
 m1, m2, m3, m4 = st.columns(4)
 with m1:
-    st.markdown(f'<div class="metric-card"><div class="metric-title">분석 대상 종목 (Russell 1000)</div><div class="metric-value">{data.get("total_analyzed", 0)}개</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-card"><div class="metric-title">분석 대상 종목 (Russell 1000)</div><div class="metric-value">{total_cnt}개</div></div>', unsafe_allow_html=True)
 with m2:
     st.markdown(f'<div class="metric-card"><div class="metric-title">20일선 근접 (과매도)</div><div class="metric-value">{len(sma20_list)}개 ({sma20_oversold})</div></div>', unsafe_allow_html=True)
 with m3:
@@ -128,15 +137,17 @@ ma_label = "20일선(이격)" if is_sma20 else "200일선(이격)"
 # 조건별 필터링 적용
 filtered = []
 for item in raw_list:
-    if pos_filter == "이동평균선 위 (지지 테스트)" and item[diff_key] < 0:
+    diff_val = item.get(diff_key, item.get("diff_pct", 0.0))
+    rsi_val = item.get("rsi", 50.0)
+    if pos_filter == "이동평균선 위 (지지 테스트)" and diff_val < 0:
         continue
-    if pos_filter == "이동평균선 아래 (저항 돌파 시도)" and item[diff_key] >= 0:
+    if pos_filter == "이동평균선 아래 (저항 돌파 시도)" and diff_val >= 0:
         continue
-    if rsi_only and item["rsi"] > 30:
+    if rsi_only and rsi_val > 30:
         continue
     if search_query:
         q = search_query.strip().lower()
-        if q not in item["ticker"].lower() and q not in item["name"].lower():
+        if q not in item.get("ticker", "").lower() and q not in item.get("name", "").lower():
             continue
     filtered.append(item)
 
@@ -151,12 +162,11 @@ with left_col:
         st.markdown(f"**검출 종목 ({len(filtered)})** <span style='color:#8b949e; font-size:0.8rem;'>행 클릭 시 우측 차트 연동</span>", unsafe_allow_html=True)
     
     if not filtered:
-        st.info("조건에 맞는 종목이 없습니다.")
+        st.info("조건에 맞는 종목이 없습니다. 우측 상단의 '🔄 데이터 업데이트' 버튼을 눌러 최신 데이터를 불러오세요.")
         selected_stock = None
     else:
         df_display = pd.DataFrame(filtered)
         
-        # CSV 다운로드 버튼
         with sub_col2:
             csv_data = df_display.to_csv(index=False).encode('utf-8-sig')
             st.download_button(
@@ -171,7 +181,7 @@ with left_col:
             "티커": df_display["ticker"],
             "기업명": df_display["name"],
             "현재가": df_display["price"].apply(lambda x: f"${x:,.2f}"),
-            ma_label: df_display.apply(lambda r: f"${r[sma_key]:,.2f} ({r[diff_key]:+.2f}%)", axis=1),
+            ma_label: df_display.apply(lambda r: f"${r.get(sma_key, 0):,.2f} ({r.get(diff_key, 0):+.2f}%)", axis=1),
             "RSI(14)": df_display["rsi"],
             "거래량(20일비)": df_display["vol_ratio"].apply(lambda x: f"{x:.0f}%")
         })
@@ -197,14 +207,14 @@ with right_col:
         with c_head2:
             timeframe = st.radio("차트 주기", ["일봉", "주봉", "월봉"], horizontal=True, label_visibility="collapsed")
 
-        vol_r = selected_stock['vol_ratio']
+        vol_r = selected_stock.get('vol_ratio', 100.0)
         vol_status = "🔥 거래량 급증" if vol_r >= 150 else ("💧 거래량 침체" if vol_r <= 60 else "평소 수준")
         
         st.markdown(f"""
         <div class="info-box">
             <b>현재가:</b> ${selected_stock['price']:,.2f} &nbsp;|&nbsp;
-            <b>52주 최고가:</b> ${selected_stock['high_52w']:,.2f} (<span style="color:#f85149;">{selected_stock['pct_from_high']:+.1f}%</span>) &nbsp;|&nbsp;
-            <b>52주 최저가:</b> ${selected_stock['low_52w']:,.2f} (<span style="color:#3fb950;">{selected_stock['pct_from_low']:+.1f}%</span>) &nbsp;|&nbsp;
+            <b>52주 최고가:</b> ${selected_stock.get('high_52w', 0):,.2f} (<span style="color:#f85149;">{selected_stock.get('pct_from_high', 0):+.1f}%</span>) &nbsp;|&nbsp;
+            <b>52주 최저가:</b> ${selected_stock.get('low_52w', 0):,.2f} (<span style="color:#3fb950;">{selected_stock.get('pct_from_low', 0):+.1f}%</span>) &nbsp;|&nbsp;
             <b>당일 거래량(20일비):</b> {vol_r:.0f}% ({vol_status})
         </div>
         """, unsafe_allow_html=True)
@@ -220,7 +230,6 @@ with right_col:
                 row_heights=[0.75, 0.25]
             )
 
-            # 1단: 캔들스틱 및 이동평균선
             fig.add_trace(go.Candlestick(
                 x=chart_df.index,
                 open=chart_df['Open'], high=chart_df['High'],
@@ -241,7 +250,6 @@ with right_col:
                 line=dict(color='#3b82f6', width=2.0)
             ), row=1, col=1)
 
-            # 2단: 거래량 바 차트 및 거래량 20일 이동평균선
             vol_colors = ['#26a69a' if c >= o else '#ef5350' for c, o in zip(chart_df['Close'], chart_df['Open'])]
             fig.add_trace(go.Bar(
                 x=chart_df.index, y=chart_df['Volume'],
