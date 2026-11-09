@@ -4,4 +4,3 @@ yfinance
 plotly
 lxml
 requests
-deep-translator
